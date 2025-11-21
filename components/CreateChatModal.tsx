@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Persona, Language, Theme } from '../types';
 import { X } from 'lucide-react';
@@ -16,7 +17,7 @@ export const CreateChatModal: React.FC<CreateChatModalProps> = ({ personas, onCl
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [chatName, setChatName] = useState('');
 
-  const personaList = Array.from(personas.values()).filter(p => !p.isUser);
+  const personaList = Array.from<Persona>(personas.values()).filter(p => !p.isUser);
 
   const toggleSelection = (id: string) => {
     const next = new Set(selectedIds);

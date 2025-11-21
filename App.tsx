@@ -151,7 +151,8 @@ export default function App() {
     return {
       apiKey: chatConfig?.apiKey || apiKey,
       baseURL: chatConfig?.baseURL || baseURL,
-      model: chatConfig?.model || modelName
+      model: chatConfig?.model || modelName,
+      moderatorModel: chatConfig?.moderatorModel // Pass moderatorModel through
     };
   }, [apiKey, baseURL, modelName]);
 
@@ -269,6 +270,7 @@ export default function App() {
 
         } catch (err) {
             console.error("AI Gen Error", err);
+            // Removed the auto-disable line to fix the "Stop Talking" bug
         } finally {
             processingRef.current = false;
             setTypingPersonaId(null);
@@ -286,7 +288,6 @@ export default function App() {
              // Only trigger if last message wasn't too recent (debounce) or handled by existing lock
              const lastMsg = autoChat.messages[autoChat.messages.length - 1];
              // We rely on processingRef to prevent overlap, but we also need to ensure we don't get stuck
-             // if the AI just replied, we need to wait a bit? No, the logic inside triggerAIGeneration has a delay.
              triggerAIGeneration(autoChat.id);
         }
     }, 1000);

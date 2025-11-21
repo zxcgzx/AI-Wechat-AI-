@@ -96,7 +96,7 @@ export const determineNextSpeaker = async (
   chatHistory: Message[],
   participants: Persona[]
 ): Promise<string | null> => {
-  const { apiKey, baseURL, model } = config;
+  const { apiKey, baseURL, model, moderatorModel } = config;
   if (!apiKey) return null;
   
   const finalBaseURL = baseURL.replace(/\/+$/, "");
@@ -130,6 +130,8 @@ Rules:
 3. Output JSON ONLY: { "nextSpeakerId": "ID" }
 `;
 
+  const effectiveModel = moderatorModel || model || "gpt-3.5-turbo";
+
   try {
     const response = await fetch(endpoint, {
       method: "POST",
@@ -138,10 +140,10 @@ Rules:
         "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: model || "gpt-3.5-turbo",
+        model: effectiveModel,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,
-        max_tokens: 100 // Increased slightly to accommodate verbose models
+        max_tokens: 100 
       })
     });
 
@@ -161,10 +163,8 @@ Rules:
         return result.nextSpeakerId || null;
     } catch {
         // 3. Robust Regex Fallback (handles "nextSpeakerId": 'id', unquoted keys, etc.)
-        // Look for "nextSpeakerId" followed by colon, optional whitespace, optional quote, the ID, optional quote
         const match = cleanedText.match(/["']?nextSpeakerId["']?\s*[:=]\s*["']?([^"'\s,}]+)["']?/i);
         if (match && match[1]) {
-            // Validate that the regex result is actually one of the candidate IDs
             const validID = candidates.find(c => c.id === match[1]);
             return validID ? validID.id : null;
         }
@@ -192,7 +192,6 @@ export const generatePersonaReply = async (
     throw new Error("API Key is missing");
   }
 
-  // Clean base URL
   const finalBaseURL = baseURL.replace(/\/+$/, ""); 
   const endpoint = `${finalBaseURL}/chat/completions`;
 
@@ -220,12 +219,11 @@ INSTRUCTIONS:
 - Reply directly to the context.
 `;
 
-  // 2. Format Messages for OpenAI format
+  // 2. Format Messages
   const messagesPayload = [
     { role: "system", content: systemPrompt }
   ];
 
-  // Take recent history
   const recentMessages = chatHistory.slice(-20);
 
   recentMessages.forEach(msg => {
@@ -247,31 +245,54 @@ INSTRUCTIONS:
     }
   });
 
-  const effectiveModel = targetPersona.model || globalModel || "gpt-3.5-turbo";
+  // Priority: Persona Specific -> Chat Config Default -> Global Default -> Hard Fallback
+  let effectiveModel = targetPersona.model || globalModel || "gpt-3.5-turbo";
+  const safeFallbackModel = globalModel || "gpt-3.5-turbo";
+
+  // Helper for making request
+  const makeRequest = async (modelToUse: string) => {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: modelToUse,
+          messages: messagesPayload,
+          temperature: 0.9,
+          max_tokens: 500,
+          stream: false
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`API Request Failed: ${response.status} ${response.statusText}`);
+      }
+      return await response.json();
+  };
+
+  let data;
 
   try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: effectiveModel,
-        messages: messagesPayload,
-        temperature: 0.9,
-        max_tokens: 500,
-        stream: false
-      })
-    });
+      // Try with the specific model first
+      data = await makeRequest(effectiveModel);
+  } catch (e) {
+      console.warn(`Failed with model ${effectiveModel}, retrying with fallback ${safeFallbackModel}`, e);
+      // Fallback logic: if specific model failed, try the safe fallback
+      if (effectiveModel !== safeFallbackModel) {
+          try {
+            data = await makeRequest(safeFallbackModel);
+          } catch (retryError) {
+             throw retryError; // If fallback also fails, throw it
+          }
+      } else {
+          throw e; // If we were already using fallback, throw
+      }
+  }
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error("API Error Details:", errorData);
-      throw new Error(`API Request Failed: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
+  try {
     let reply = data.choices?.[0]?.message?.content || "";
     
     if (!reply) {
@@ -279,21 +300,16 @@ INSTRUCTIONS:
     }
 
     // --- Post Processing: Clean Output ---
-
-    // 1. Remove DeepSeek/Reasoning model <think> tags
     reply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '');
 
-    // 2. Remove prefixes (Name:, Me:, etc.)
     const prefixesToRemove = [
         targetPersona.name,
         "Me", "I", "我", "System", "Role", "Assistant"
     ];
     
-    // Regex matches start of string, optional whitespace, Name, optional colon/Chinese colon, optional whitespace
     const pattern = new RegExp(`^(${prefixesToRemove.join('|')})[:：]?\\s*`, 'i');
     reply = reply.replace(pattern, '');
     
-    // 3. Clean wrapping quotes
     reply = reply.replace(/^["']|["']$/g, '').trim();
 
     if (!reply) return "...";

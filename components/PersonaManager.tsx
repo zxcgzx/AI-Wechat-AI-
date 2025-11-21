@@ -70,7 +70,7 @@ export const PersonaManager: React.FC<PersonaManagerProps> = ({
     }
   };
 
-  const personaList = Array.from(personas.values()).filter(p => !p.isUser);
+  const personaList = Array.from<Persona>(personas.values()).filter(p => !p.isUser);
 
   // Styles
   const mainBg = theme === 'light' ? 'bg-[#f5f5f5]' : 'bg-[#121212]';

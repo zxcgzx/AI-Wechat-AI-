@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Save, Trash2, Box, Globe, Key, RefreshCw, List, Edit2, UserPlus, Download, User, AlertTriangle } from 'lucide-react';
+import { X, Save, Trash2, Box, Globe, Key, RefreshCw, List, Edit2, UserPlus, Download, User, AlertTriangle, Cpu } from 'lucide-react';
 import { fetchAvailableModels } from '../services/geminiService';
 import { AIConfig, Language, Theme, Persona, Message } from '../types';
 import { translations } from '../translations';
@@ -112,7 +112,7 @@ export const ChatSettingsModal: React.FC<ChatSettingsModalProps> = ({
   const headerBg = theme === 'light' ? 'bg-gray-50' : 'bg-[#2a2a2a]';
   const borderColor = theme === 'light' ? 'border-gray-200' : 'border-[#333]';
 
-  const candidates = Array.from(allPersonas.values()).filter(p => !currentMembers.includes(p.id) && !p.isUser);
+  const candidates = Array.from<Persona>(allPersonas.values()).filter(p => !currentMembers.includes(p.id) && !p.isUser);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -189,37 +189,70 @@ export const ChatSettingsModal: React.FC<ChatSettingsModalProps> = ({
                                 />
                             </div>
 
-                            {/* Model */}
-                            <div>
-                                <div className="flex justify-between items-center mb-1">
-                                    <label className={`flex items-center gap-2 text-xs font-medium ${textSecondary}`}>
-                                        <Box size={14} /> {t.model_name}
-                                    </label>
-                                    <div className="flex gap-2">
-                                        <button onClick={handleFetchModels} disabled={isFetching} className="text-xs text-[#07c160] flex items-center gap-1">
-                                            <RefreshCw size={10} className={isFetching ? "animate-spin" : ""} /> {t.fetch_models}
-                                        </button>
-                                        <button onClick={() => setManualModelMode(!manualModelMode)} className={`text-xs ${textSecondary}`}>
-                                            {manualModelMode ? <List size={12}/> : <Edit2 size={12}/>}
-                                        </button>
-                                    </div>
+                            <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded border border-gray-100 dark:border-gray-700/50">
+                                <div className="flex justify-between items-center mb-2">
+                                     <span className={`text-xs font-bold ${textSecondary}`}>Models Config</span>
+                                     <button onClick={handleFetchModels} disabled={isFetching} className="text-xs text-[#07c160] flex items-center gap-1">
+                                        <RefreshCw size={10} className={isFetching ? "animate-spin" : ""} /> {t.fetch_models}
+                                     </button>
                                 </div>
-                                {manualModelMode || modelsList.length === 0 ? (
-                                    <input
-                                        type="text"
-                                        value={formData.model}
-                                        onChange={(e) => setFormData({...formData, model: e.target.value})}
-                                        className={`w-full p-2 border rounded text-xs font-mono ${inputBg} ${inputBorder} ${inputText}`}
-                                    />
-                                ) : (
-                                    <select
-                                        value={formData.model}
-                                        onChange={(e) => setFormData({...formData, model: e.target.value})}
-                                        className={`w-full p-2 border rounded text-xs ${inputBg} ${inputBorder} ${inputText}`}
-                                    >
-                                        {modelsList.map(m => <option key={m} value={m}>{m}</option>)}
-                                    </select>
-                                )}
+
+                                {/* Model */}
+                                <div className="mb-3">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className={`flex items-center gap-2 text-xs font-medium ${textSecondary}`}>
+                                            <Box size={14} /> {t.model_name}
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => setManualModelMode(!manualModelMode)} className={`text-xs ${textSecondary}`}>
+                                                {manualModelMode ? <List size={12}/> : <Edit2 size={12}/>}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {manualModelMode || modelsList.length === 0 ? (
+                                        <input
+                                            type="text"
+                                            value={formData.model}
+                                            onChange={(e) => setFormData({...formData, model: e.target.value})}
+                                            className={`w-full p-2 border rounded text-xs font-mono ${inputBg} ${inputBorder} ${inputText}`}
+                                        />
+                                    ) : (
+                                        <select
+                                            value={formData.model}
+                                            onChange={(e) => setFormData({...formData, model: e.target.value})}
+                                            className={`w-full p-2 border rounded text-xs ${inputBg} ${inputBorder} ${inputText}`}
+                                        >
+                                            {modelsList.map(m => <option key={m} value={m}>{m}</option>)}
+                                        </select>
+                                    )}
+                                    <p className="text-[10px] text-gray-400 mt-0.5">{t.model_name_desc}</p>
+                                </div>
+
+                                {/* Moderator Model */}
+                                <div>
+                                    <label className={`flex items-center gap-2 text-xs font-medium ${textSecondary} mb-1`}>
+                                        <Cpu size={14} /> {t.moderator_model}
+                                    </label>
+                                    {manualModelMode || modelsList.length === 0 ? (
+                                        <input
+                                            type="text"
+                                            value={formData.moderatorModel || ''}
+                                            onChange={(e) => setFormData({...formData, moderatorModel: e.target.value})}
+                                            placeholder="Optional: e.g. gpt-4o-mini"
+                                            className={`w-full p-2 border rounded text-xs font-mono ${inputBg} ${inputBorder} ${inputText}`}
+                                        />
+                                    ) : (
+                                        <select
+                                            value={formData.moderatorModel || ''}
+                                            onChange={(e) => setFormData({...formData, moderatorModel: e.target.value})}
+                                            className={`w-full p-2 border rounded text-xs ${inputBg} ${inputBorder} ${inputText}`}
+                                        >
+                                            <option value="">-- Same as Default Model --</option>
+                                            {modelsList.map(m => <option key={m} value={m}>{m}</option>)}
+                                        </select>
+                                    )}
+                                    <p className="text-[10px] text-gray-400 mt-0.5">{t.moderator_model_desc}</p>
+                                </div>
                             </div>
                         </div>
                     )}
