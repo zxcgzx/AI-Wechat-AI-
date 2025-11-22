@@ -25,13 +25,25 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm install
 
-      - name: Build
-        run: npm run build
+      - name: Install TypeScript and esbuild
+        run: npm install -D esbuild typescript @types/react @types/react-dom
+
+      - name: Bundle application
+        run: |
+          npx esbuild index.tsx --bundle --outfile=dist/app.js --format=esm --target=es2020 \
+            --external:react --external:react-dom --external:react-dom/client \
+            --external:lucide-react --external:@google/genai --external:date-fns --external:react-markdown \
+            --jsx=automatic --loader:.tsx=tsx --loader:.ts=ts
+
+      - name: Prepare dist folder
+        run: |
+          mkdir -p dist
+          cp index.html dist/
+          sed -i 's|<script type="module" src="/index.tsx"></script>|<script type="module" src="./app.js"></script>|g' dist/index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
